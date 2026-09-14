@@ -1,7 +1,10 @@
 import { memo, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
+import type { ChangedField } from '@/entities/org/model/apply-changes';
 import type { NodeId, OrgTree } from '@/entities/org/model/types';
+import type { FlashMap } from '@/entities/org/store/org-store';
+import { Flash } from '@/shared/ui/Flash';
 
 import { PerformanceIndicator } from './PerformanceIndicator';
 
@@ -9,11 +12,13 @@ export interface TreeViewProps {
   tree: OrgTree;
   expanded: ReadonlySet<NodeId>;
   selectedId: NodeId | null;
+  flashes: FlashMap;
   onToggle: (id: NodeId) => void;
   onSelect: (id: NodeId) => void;
 }
 
 const EMPTY: readonly NodeId[] = [];
+const NO_FLASH: ReadonlyMap<ChangedField, number> = new Map();
 
 const List = styled.ul`
   list-style: none;
@@ -27,6 +32,34 @@ const Group = styled(List)`
 
 const Item = styled.li`
   margin: 0;
+`;
+
+/*
+ * Анимация раскрытия через grid-template-rows 0fr → 1fr: высота содержимого не измеряется
+ * и не фиксируется в JS. При prefers-reduced-motion переход отключён глобальным стилем.
+ * Свёрнутая ветка остаётся в DOM (для анимации), но скрыта от клавиатуры и скринридеров:
+ * visibility: hidden после завершения перехода, inert и aria-hidden — сразу.
+ */
+const Collapsible = styled.div`
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows ${({ theme }) => theme.motion.base} ease;
+
+  &[data-open='true'] {
+    grid-template-rows: 1fr;
+  }
+`;
+
+const CollapsibleInner = styled.div`
+  min-height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  transition: visibility 0s linear ${({ theme }) => theme.motion.base};
+
+  [data-open='true'] > & {
+    visibility: visible;
+    transition-delay: 0s;
+  }
 `;
 
 const Row = styled.div<{ $selected: boolean }>`
@@ -129,6 +162,7 @@ interface TreeNodeItemProps {
   tree: OrgTree;
   expanded: ReadonlySet<NodeId>;
   selectedId: NodeId | null;
+  flashes: FlashMap;
   onToggle: (id: NodeId) => void;
   onSelect: (id: NodeId) => void;
 }
@@ -138,6 +172,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   tree,
   expanded,
   selectedId,
+  flashes,
   onToggle,
   onSelect,
 }: TreeNodeItemProps) {
@@ -156,6 +191,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   const hasChildren = children.length > 0;
   const isOpen = hasChildren && expanded.has(id);
   const level = tree.depth.get(id) ?? 1;
+  const flash = flashes.get(id) ?? NO_FLASH;
 
   return (
     <Item
@@ -184,30 +220,44 @@ const TreeNodeItem = memo(function TreeNodeItem({
         <Name>{node.name}</Name>
         <Headcount title="Численность подразделения">
           <PeopleIcon />
-          {node.headcount}
+          <Flash at={flash.get('headcount')}>{node.headcount}</Flash>
         </Headcount>
-        <PerformanceIndicator value={node.performance} />
+        <Flash at={flash.get('performance')}>
+          <PerformanceIndicator value={node.performance} />
+        </Flash>
       </Row>
-      {hasChildren && isOpen && (
-        <Group role="group">
-          {children.map((childId) => (
-            <TreeNodeItem
-              key={childId}
-              id={childId}
-              tree={tree}
-              expanded={expanded}
-              selectedId={selectedId}
-              onToggle={onToggle}
-              onSelect={onSelect}
-            />
-          ))}
-        </Group>
+      {hasChildren && (
+        <Collapsible data-open={isOpen} data-collapsible="">
+          <CollapsibleInner inert={!isOpen} aria-hidden={!isOpen}>
+            <Group role="group">
+              {children.map((childId) => (
+                <TreeNodeItem
+                  key={childId}
+                  id={childId}
+                  tree={tree}
+                  expanded={expanded}
+                  selectedId={selectedId}
+                  flashes={flashes}
+                  onToggle={onToggle}
+                  onSelect={onSelect}
+                />
+              ))}
+            </Group>
+          </CollapsibleInner>
+        </Collapsible>
       )}
     </Item>
   );
 });
 
-export function TreeView({ tree, expanded, selectedId, onToggle, onSelect }: TreeViewProps) {
+export function TreeView({
+  tree,
+  expanded,
+  selectedId,
+  flashes,
+  onToggle,
+  onSelect,
+}: TreeViewProps) {
   return (
     <List role="tree" aria-label="Орг-структура компании">
       {tree.roots.map((id) => (
@@ -217,6 +267,7 @@ export function TreeView({ tree, expanded, selectedId, onToggle, onSelect }: Tre
           tree={tree}
           expanded={expanded}
           selectedId={selectedId}
+          flashes={flashes}
           onToggle={onToggle}
           onSelect={onSelect}
         />

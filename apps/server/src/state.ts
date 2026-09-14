@@ -1,21 +1,29 @@
-import type { OrgNode } from '@staff-pulse/contracts';
+import type { NodeChange, OrgNode, PatchMessage } from '@staff-pulse/contracts';
 
 /**
  * Состояние орг-структуры в памяти сервера.
- * `version` растёт только при реальном изменении данных, поэтому ETag меняется
- * тоже только тогда — клиент получает 304 и не трогает свой кэш.
+ * `version` (seq) растёт ровно на 1 при каждом применённом патче, поэтому ETag меняется
+ * только при реальном изменении данных, а клиент по номеру seq видит пропуски.
  */
 export class OrgState {
   private readonly nodes = new Map<string, OrgNode>();
   private seq = 0;
   private snapshotCache: OrgNode[] | null = null;
+  /** Кольцевой буфер последних патчей для досылки при переподключении. */
+  private readonly patches: PatchMessage[] = [];
 
   /** Идентификатор процесса: после рестарта сервера меняется, чтобы клиенты не доверяли старым ETag/seq. */
   readonly serverId: string;
+  private readonly patchBufferSize: number;
 
-  constructor(initial: readonly OrgNode[], serverId: string = randomServerId()) {
+  constructor(
+    initial: readonly OrgNode[],
+    serverId: string = randomServerId(),
+    patchBufferSize = 500,
+  ) {
     for (const node of initial) this.nodes.set(node.id, node);
     this.serverId = serverId;
+    this.patchBufferSize = patchBufferSize;
   }
 
   get version(): number {
@@ -44,14 +52,37 @@ export class OrgState {
     return `W/"${this.serverId}-${this.seq}"`;
   }
 
-  protected replace(node: OrgNode): void {
-    this.nodes.set(node.id, node);
+  /**
+   * Применяет изменения одним патчем: seq += 1, узлы заменяются новыми объектами.
+   * Изменения неизвестных узлов отбрасываются; если применять нечего — возвращает null.
+   */
+  applyChanges(changes: readonly NodeChange[]): PatchMessage | null {
+    const applied: NodeChange[] = [];
+    for (const change of changes) {
+      const current = this.nodes.get(change.id);
+      if (!current) continue;
+      this.nodes.set(change.id, { ...current, ...change.fields, updatedAt: change.updatedAt });
+      applied.push(change);
+    }
+    if (applied.length === 0) return null;
+
     this.snapshotCache = null;
+    this.seq += 1;
+    const patch: PatchMessage = { type: 'patch', seq: this.seq, changes: applied };
+    this.patches.push(patch);
+    if (this.patches.length > this.patchBufferSize) this.patches.shift();
+    return patch;
   }
 
-  protected bump(): number {
-    this.seq += 1;
-    return this.seq;
+  /**
+   * Патчи с seq > since. null — если пропуск больше буфера (клиенту нужен полный снимок).
+   * since >= текущего seq даёт пустой массив.
+   */
+  patchesSince(since: number): PatchMessage[] | null {
+    if (since >= this.seq) return [];
+    const oldest = this.patches[0];
+    if (!oldest || oldest.seq > since + 1) return null;
+    return this.patches.filter((patch) => patch.seq > since);
   }
 }
 

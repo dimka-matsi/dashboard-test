@@ -5,9 +5,12 @@ import { describeError } from '@/entities/org/model/describe-error';
 import type { NodeId } from '@/entities/org/model/types';
 import { useOrgModel } from '@/entities/org/model/use-org-model';
 import { AnalyticsTablePanel } from '@/features/analytics-table/AnalyticsTablePanel';
+import { ConnectionIndicator } from '@/features/live-updates/ConnectionIndicator';
+import { useLiveUpdates } from '@/features/live-updates/use-live-updates';
 import { OrgTreePanel } from '@/features/org-tree/OrgTreePanel';
 import { useViewLayout } from '@/features/view-mode/use-view-mode';
 import { ViewSwitcher } from '@/features/view-mode/ViewSwitcher';
+import { isLiveEnabled } from '@/shared/config/env';
 import { Button } from '@/shared/ui/Button';
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/StatePanel';
 
@@ -50,8 +53,16 @@ const Notice = styled.div`
   font-size: ${({ theme }) => theme.font.size.sm};
 `;
 
+/** Период фонового поллинга, когда live-канал долго не восстанавливается. */
+export const POLLING_FALLBACK_MS = 15_000;
+
 export function Dashboard() {
-  const state = useOrgModel();
+  const live = useLiveUpdates({ enabled: isLiveEnabled() });
+  // Пока WebSocket не восстановился после нескольких попыток, данные обновляются редким поллингом.
+  const liveDegraded =
+    live.status.state === 'offline' ||
+    (live.status.state === 'reconnecting' && live.status.attempt >= 2);
+  const state = useOrgModel({ refetchInterval: liveDegraded ? POLLING_FALLBACK_MS : false });
   const { isSplit, mode, setMode } = useViewLayout();
   const [selectedId, setSelectedId] = useState<NodeId | null>(null);
 
@@ -79,6 +90,7 @@ export function Dashboard() {
             <ViewSwitcher mode={mode} onChange={setMode} />
           ) : null
         }
+        right={<ConnectionIndicator status={live.status} onReconnect={live.reconnect} />}
       />
       <Main $split={isSplit && state.status === 'ready'} aria-busy={state.status === 'loading'}>
         {state.status === 'loading' && <LoadingState />}
@@ -107,12 +119,14 @@ export function Dashboard() {
             )}
             <OrgTreePanel
               tree={state.model.tree}
+              flashes={state.flashes}
               selectedId={selectedId}
               onSelect={selectFromTree}
               hidden={!isSplit && mode !== 'tree'}
             />
             <AnalyticsTablePanel
               model={state.model}
+              flashes={state.flashes}
               selectedId={selectedId}
               onSelect={selectFromTable}
               hidden={!isSplit && mode !== 'table'}

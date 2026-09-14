@@ -48,9 +48,11 @@ export interface HeaderProps {
   onRefresh?: () => void;
   /** Центральный слот: переключатель «Дерево / Таблица» на узких экранах. */
   center?: ReactNode;
+  /** Правый слот перед кнопкой обновления: индикатор соединения. */
+  right?: ReactNode;
 }
 
-export function Header({ isFetching, onRefresh, center }: HeaderProps) {
+export function Header({ isFetching, onRefresh, center, right }: HeaderProps) {
   return (
     <Bar>
       <Brand>
@@ -59,6 +61,7 @@ export function Header({ isFetching, onRefresh, center }: HeaderProps) {
       </Brand>
       {center}
       <Right>
+        {right}
         {onRefresh && (
           <Button type="button" $size="sm" onClick={onRefresh} disabled={isFetching}>
             {isFetching ? <Spinner $size={14} /> : null}

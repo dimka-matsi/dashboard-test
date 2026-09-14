@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 
-import { useOrgTreeQuery } from '../api/org-tree-query';
-import { buildOrgModel, type OrgModel } from './org-model';
+import { useOrgTreeQuery, type OrgTreeQueryOptions } from '../api/org-tree-query';
+import { useOrgStore } from '../store/OrgStoreProvider';
+import type { FlashMap } from '../store/org-store';
+import type { OrgModel } from './org-model';
 
 export type OrgModelState =
   | { status: 'loading' }
@@ -10,6 +12,8 @@ export type OrgModelState =
   | {
       status: 'ready';
       model: OrgModel;
+      /** Недавно изменённые ячейки (для fade-out анимации). */
+      flashes: FlashMap;
       isFetching: boolean;
       /** Ошибка фонового обновления: данные на экране есть, но могут быть устаревшими. */
       refetchError: unknown;
@@ -19,20 +23,21 @@ export type OrgModelState =
 type BuildResult = { model: OrgModel } | { error: unknown };
 
 /** Состояние экрана поверх запроса: загрузка, ошибка, пусто, готово. */
-export function useOrgModel(): OrgModelState {
-  const query = useOrgTreeQuery();
+export function useOrgModel(options: OrgTreeQueryOptions = {}): OrgModelState {
+  const query = useOrgTreeQuery(options);
+  const store = useOrgStore();
   const data = query.data;
 
-  // Модель (дерево + агрегаты) строится один раз на ссылку данных: structural sharing в кэше
-  // гарантирует, что одинаковый ответ сервера не меняет ссылку и не запускает пересборку.
+  // Модель строится один раз на ссылку снимка. Патчи live-канала обновляют её инкрементально
+  // через store и записывают снимок в кэш, поэтому здесь ссылка совпадает и пересборки нет.
   const built = useMemo<BuildResult | null>(() => {
     if (!data) return null;
     try {
-      return { model: buildOrgModel(data) };
+      return { model: store.modelFor(data) };
     } catch (error) {
       return { error };
     }
-  }, [data]);
+  }, [data, store]);
 
   const refetch = () => void query.refetch();
 
@@ -45,6 +50,7 @@ export function useOrgModel(): OrgModelState {
   return {
     status: 'ready',
     model: built.model,
+    flashes: store.flashes,
     isFetching: query.isFetching,
     refetchError: query.isError ? query.error : null,
     refetch,

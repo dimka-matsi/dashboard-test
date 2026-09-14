@@ -29,7 +29,7 @@ export function createRequestHandler({ state, config, log }: HandlerDeps): Reque
       res.setHeader('Access-Control-Allow-Origin', config.corsOrigin);
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, If-None-Match');
-      res.setHeader('Access-Control-Expose-Headers', 'ETag');
+      res.setHeader('Access-Control-Expose-Headers', 'ETag, X-Org-Version, X-Server-Id');
       res.setHeader('Vary', 'Origin');
       if (req.method === 'OPTIONS') {
         sendEmpty(res, 204);
@@ -98,7 +98,13 @@ async function handleOrgTree(
   // no-cache = «кэшируй, но всегда перепроверяй». Пока данные не менялись,
   // ETag прежний, и браузер получает 304 без тела.
   const etag = state.etag();
-  const headers = { ETag: etag, 'Cache-Control': 'no-cache' };
+  const headers = {
+    ETag: etag,
+    'Cache-Control': 'no-cache',
+    // Версия снимка: клиент сверяет с seq патчей и замечает пропуски.
+    'X-Org-Version': String(state.version),
+    'X-Server-Id': state.serverId,
+  };
   if (matchesEtag(req.headers['if-none-match'], etag)) {
     sendEmpty(res, 304, headers);
     return;

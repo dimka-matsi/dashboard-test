@@ -1,3 +1,6 @@
+import type { OrgNode } from '@staff-pulse/contracts';
+
+import type { NodeAggregate } from '@/entities/org/model/aggregate';
 import { levelLabel } from '@/entities/org/model/levels';
 import type { OrgModel } from '@/entities/org/model/org-model';
 import type { NodeId } from '@/entities/org/model/types';
@@ -15,6 +18,9 @@ export interface TableRow {
   readonly avgPerformance: number | null;
   /** Позиция в обходе дерева: порядок по умолчанию и стабилизатор сортировки. */
   readonly treeIndex: number;
+  /** Ссылки на источник: при патче меняются только у затронутых узлов — основа мемоизации строк. */
+  readonly node: OrgNode;
+  readonly aggregate: NodeAggregate;
 }
 
 export const SORT_COLUMNS = [
@@ -66,6 +72,8 @@ export function buildRows(model: OrgModel): readonly TableRow[] {
       totalBudget: aggregate.totalBudget,
       avgPerformance: aggregate.avgPerformance,
       treeIndex,
+      node,
+      aggregate,
     });
   });
   return rows;

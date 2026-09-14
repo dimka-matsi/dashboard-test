@@ -1,12 +1,16 @@
 import { memo, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
+import type { ChangedField } from '@/entities/org/model/apply-changes';
 import { performanceBucket } from '@/entities/org/model/performance';
 import type { NodeId } from '@/entities/org/model/types';
+import type { FlashMap } from '@/entities/org/store/org-store';
 import { PerformanceDot } from '@/entities/org/ui/PerformanceDot';
 import { formatBudget, formatInteger, formatPerformance } from '@/shared/lib/format';
+import { Flash } from '@/shared/ui/Flash';
 
 import type { SortColumn, SortState, TableRow } from './rows';
+import { useGridNavigation } from './use-grid-navigation';
 
 interface ColumnDef {
   key: SortColumn;
@@ -14,14 +18,34 @@ interface ColumnDef {
   align: 'left' | 'right';
   /** Доля ширины таблицы (table-layout: fixed). */
   width: string;
+  /** Какое изменение подсвечивает ячейку. */
+  flashField?: ChangedField;
 }
 
 export const COLUMNS: readonly ColumnDef[] = [
   { key: 'name', label: 'Подразделение', align: 'left', width: '34%' },
   { key: 'level', label: 'Уровень', align: 'left', width: '15%' },
-  { key: 'totalHeadcount', label: 'Всего сотрудников', align: 'right', width: '15%' },
-  { key: 'totalBudget', label: 'Бюджет суммарный', align: 'right', width: '20%' },
-  { key: 'avgPerformance', label: 'Средняя эффективность', align: 'right', width: '16%' },
+  {
+    key: 'totalHeadcount',
+    label: 'Всего сотрудников',
+    align: 'right',
+    width: '15%',
+    flashField: 'totalHeadcount',
+  },
+  {
+    key: 'totalBudget',
+    label: 'Бюджет суммарный',
+    align: 'right',
+    width: '20%',
+    flashField: 'totalBudget',
+  },
+  {
+    key: 'avgPerformance',
+    label: 'Средняя эффективность',
+    align: 'right',
+    width: '16%',
+    flashField: 'avgPerformance',
+  },
 ];
 
 const Table = styled.table`
@@ -75,6 +99,11 @@ const Table = styled.table`
 
   tbody tr[aria-selected='true'] td:first-child {
     box-shadow: inset 3px 0 0 ${({ theme }) => theme.colors.accent};
+  }
+
+  td:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.accent};
+    outline-offset: -2px;
   }
 `;
 
@@ -155,60 +184,100 @@ export interface AnalyticsTableProps {
   onReverse: () => void;
   selectedId: NodeId | null;
   onSelect: (id: NodeId) => void;
+  /** Недавно изменённые ячейки: подсветка с затуханием. */
+  flashes: FlashMap;
   /** Текущий (уже применённый) фильтр — для текста пустого результата. */
   query: string;
 }
 
 interface RowProps {
   row: TableRow;
+  rowIndex: number;
   selected: boolean;
+  flash: ReadonlyMap<ChangedField, number> | undefined;
+  /** Индекс активной ячейки в этой строке (roving tabindex) или -1. */
+  activeCol: number;
   onSelect: (id: NodeId) => void;
+  onCellFocus: (rowId: NodeId, col: number) => void;
 }
 
-const TableRowItem = memo(function TableRowItem({ row, selected, onSelect }: RowProps) {
-  const ref = useRef<HTMLTableRowElement>(null);
+const TableRowItem = memo(
+  function TableRowItem({
+    row,
+    rowIndex,
+    selected,
+    flash,
+    activeCol,
+    onSelect,
+    onCellFocus,
+  }: RowProps) {
+    const ref = useRef<HTMLTableRowElement>(null);
 
-  useEffect(() => {
-    if (selected) ref.current?.scrollIntoView?.({ block: 'nearest' });
-  }, [selected]);
+    useEffect(() => {
+      if (selected) ref.current?.scrollIntoView?.({ block: 'nearest' });
+    }, [selected]);
 
-  return (
-    <tr
-      ref={ref}
-      role="row"
-      aria-selected={selected}
-      data-node-id={row.id}
-      onClick={() => onSelect(row.id)}
-    >
-      <NameCell role="gridcell" title={row.path}>
-        {row.name}
-      </NameCell>
-      <td role="gridcell">
-        <LevelBadge>
-          <b>{row.level}</b>
-          {row.levelLabel}
-        </LevelBadge>
-      </td>
-      <td role="gridcell" data-align="right">
-        {formatInteger(row.totalHeadcount)}
-      </td>
-      <td role="gridcell" data-align="right">
-        {formatBudget(row.totalBudget)}
-      </td>
-      <td role="gridcell" data-align="right">
-        <PerformanceCell>
-          {row.avgPerformance !== null && (
-            <PerformanceDot
-              data-bucket={performanceBucket(row.avgPerformance)}
-              aria-hidden="true"
-            />
-          )}
-          {formatPerformance(row.avgPerformance)}
-        </PerformanceCell>
-      </td>
-    </tr>
-  );
-});
+    const cell = (col: number) => ({
+      role: 'gridcell' as const,
+      tabIndex: col === activeCol ? 0 : -1,
+      'data-row': rowIndex,
+      'data-col': col,
+      'aria-colindex': col + 1,
+      onFocus: () => onCellFocus(row.id, col),
+    });
+
+    return (
+      <tr
+        ref={ref}
+        role="row"
+        aria-selected={selected}
+        aria-rowindex={rowIndex + 2}
+        data-node-id={row.id}
+        onClick={() => onSelect(row.id)}
+      >
+        <NameCell {...cell(0)} title={row.path}>
+          {row.name}
+        </NameCell>
+        <td {...cell(1)}>
+          <LevelBadge>
+            <b>{row.level}</b>
+            {row.levelLabel}
+          </LevelBadge>
+        </td>
+        <td {...cell(2)} data-align="right">
+          <Flash at={flash?.get('totalHeadcount')}>{formatInteger(row.totalHeadcount)}</Flash>
+        </td>
+        <td {...cell(3)} data-align="right">
+          <Flash at={flash?.get('totalBudget')}>{formatBudget(row.totalBudget)}</Flash>
+        </td>
+        <td {...cell(4)} data-align="right">
+          <Flash at={flash?.get('avgPerformance')}>
+            <PerformanceCell>
+              {row.avgPerformance !== null && (
+                <PerformanceDot
+                  data-bucket={performanceBucket(row.avgPerformance)}
+                  aria-hidden="true"
+                />
+              )}
+              {formatPerformance(row.avgPerformance)}
+            </PerformanceCell>
+          </Flash>
+        </td>
+      </tr>
+    );
+  },
+  // Строка перерисовывается, только если изменились её данные, выделение, подсветка или фокус.
+  (prev, next) =>
+    prev.row.id === next.row.id &&
+    prev.row.node === next.row.node &&
+    prev.row.aggregate === next.row.aggregate &&
+    prev.rowIndex === next.rowIndex &&
+    prev.selected === next.selected &&
+    prev.flash === next.flash &&
+    prev.activeCol === next.activeCol &&
+    prev.onSelect === next.onSelect &&
+    prev.onCellFocus === next.onCellFocus,
+);
 
 export function AnalyticsTable({
   rows,
@@ -217,17 +286,29 @@ export function AnalyticsTable({
   onReverse,
   selectedId,
   onSelect,
+  flashes,
   query,
 }: AnalyticsTableProps) {
+  const { bodyRef, onKeyDown, onCellFocus, activeRow, activeCol } = useGridNavigation({
+    rows,
+    columnCount: COLUMNS.length,
+    onActivate: onSelect,
+  });
+
   return (
-    <Table role="grid" aria-label="Аналитика подразделений" aria-rowcount={rows.length + 1}>
+    <Table
+      role="grid"
+      aria-label="Аналитика подразделений"
+      aria-rowcount={rows.length + 1}
+      aria-colcount={COLUMNS.length}
+    >
       <colgroup>
         {COLUMNS.map((column) => (
           <col key={column.key} width={column.width} />
         ))}
       </colgroup>
       <thead>
-        <tr role="row">
+        <tr role="row" aria-rowindex={1}>
           {COLUMNS.map((column) => {
             const active = sort?.column === column.key;
             const ariaSort = active
@@ -265,7 +346,7 @@ export function AnalyticsTable({
           })}
         </tr>
       </thead>
-      <tbody>
+      <tbody ref={bodyRef} onKeyDown={onKeyDown}>
         {rows.length === 0 ? (
           <tr role="row">
             <EmptyRow role="gridcell" colSpan={COLUMNS.length}>
@@ -275,12 +356,16 @@ export function AnalyticsTable({
             </EmptyRow>
           </tr>
         ) : (
-          rows.map((row) => (
+          rows.map((row, index) => (
             <TableRowItem
               key={row.id}
               row={row}
+              rowIndex={index}
               selected={row.id === selectedId}
+              flash={flashes.get(row.id)}
+              activeCol={index === activeRow ? activeCol : -1}
               onSelect={onSelect}
+              onCellFocus={onCellFocus}
             />
           ))
         )}

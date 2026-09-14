@@ -32,15 +32,17 @@ export interface FetchJsonOptions {
   body?: unknown;
 }
 
-/**
- * Единственная точка обращения к API: fetch + проверка статуса + валидация схемой.
- * Невалидный ответ — это ошибка (`invalid-response`), а не «как-нибудь отрендерим».
- */
-export async function fetchJson<T>(
+export interface FetchJsonResult<T> {
+  data: T;
+  response: Response;
+}
+
+/** То же, что `fetchJson`, но с доступом к ответу (заголовки версии снимка и т. п.). */
+export async function fetchJsonDetailed<T>(
   url: string,
   schema: z.ZodMiniType<T>,
   { signal, method = 'GET', body }: FetchJsonOptions = {},
-): Promise<T> {
+): Promise<FetchJsonResult<T>> {
   let response: Response;
   try {
     response = await fetch(url, {
@@ -77,7 +79,20 @@ export async function fetchJson<T>(
       details: z.prettifyError(parsed.error),
     });
   }
-  return parsed.data;
+  return { data: parsed.data, response };
+}
+
+/**
+ * Единственная точка обращения к API: fetch + проверка статуса + валидация схемой.
+ * Невалидный ответ — это ошибка (`invalid-response`), а не «как-нибудь отрендерим».
+ */
+export async function fetchJson<T>(
+  url: string,
+  schema: z.ZodMiniType<T>,
+  options: FetchJsonOptions = {},
+): Promise<T> {
+  const { data } = await fetchJsonDetailed(url, schema, options);
+  return data;
 }
 
 async function readErrorDetails(response: Response): Promise<string | undefined> {

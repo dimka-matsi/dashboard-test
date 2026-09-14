@@ -4,6 +4,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { ThemeProvider } from 'styled-components';
 
 import { theme } from '@/app/styles/theme';
+import { OrgStoreProvider } from '@/entities/org/store/OrgStoreProvider';
 
 export function createTestQueryClient(): QueryClient {
   return new QueryClient({
@@ -22,7 +23,9 @@ export function renderWithProviders(
 ) {
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>{children}</ThemeProvider>
+      <OrgStoreProvider>
+        <ThemeProvider theme={theme}>{children}</ThemeProvider>
+      </OrgStoreProvider>
     </QueryClientProvider>
   );
   return { queryClient, ...render(ui, { wrapper: Wrapper, ...options }) };

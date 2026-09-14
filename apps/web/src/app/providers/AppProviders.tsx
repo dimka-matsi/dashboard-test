@@ -6,6 +6,7 @@ import { ThemeProvider } from 'styled-components';
 import { createQueryClient } from '@/app/query-client';
 import { GlobalStyle } from '@/app/styles/GlobalStyle';
 import { theme } from '@/app/styles/theme';
+import { OrgStoreProvider } from '@/entities/org/store/OrgStoreProvider';
 
 export function AppProviders({ children }: { children: ReactNode }) {
   // QueryClient живёт столько же, сколько приложение: создаём один раз на монтирование.
@@ -13,10 +14,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <GlobalStyle />
-        {children}
-      </ThemeProvider>
+      <OrgStoreProvider>
+        <ThemeProvider theme={theme}>
+          <GlobalStyle />
+          {children}
+        </ThemeProvider>
+      </OrgStoreProvider>
       {import.meta.env.DEV && (
         <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
       )}

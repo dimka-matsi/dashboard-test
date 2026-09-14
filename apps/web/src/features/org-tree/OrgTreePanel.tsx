@@ -3,6 +3,7 @@ import styled from 'styled-components';
 
 import { ancestorsOf } from '@/entities/org/model/build-org-tree';
 import type { NodeId, OrgTree } from '@/entities/org/model/types';
+import type { FlashMap } from '@/entities/org/store/org-store';
 import { Button } from '@/shared/ui/Button';
 import { Panel, PanelBody, PanelHeader, PanelTitle } from '@/shared/ui/Panel';
 
@@ -22,12 +23,13 @@ const Meta = styled.span`
 
 export interface OrgTreePanelProps {
   tree: OrgTree;
+  flashes: FlashMap;
   selectedId: NodeId | null;
   onSelect: (id: NodeId) => void;
   hidden?: boolean;
 }
 
-export function OrgTreePanel({ tree, selectedId, onSelect, hidden }: OrgTreePanelProps) {
+export function OrgTreePanel({ tree, flashes, selectedId, onSelect, hidden }: OrgTreePanelProps) {
   const { expanded, toggle, expandMany, expandAll, collapseAll } = useExpandedNodes(tree);
 
   // Выбранный узел (например, из таблицы) должен быть виден: раскрываем всех его предков.
@@ -56,6 +58,7 @@ export function OrgTreePanel({ tree, selectedId, onSelect, hidden }: OrgTreePane
           tree={tree}
           expanded={expanded}
           selectedId={selectedId}
+          flashes={flashes}
           onToggle={toggle}
           onSelect={onSelect}
         />

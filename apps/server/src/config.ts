@@ -8,6 +8,14 @@ export interface ServerConfig {
   /** Разрешённый Origin для CORS (нужен только если клиент ходит на API напрямую, без прокси). */
   corsOrigin: string | null;
   logLevel: LogLevel;
+  /** Период генерации live-изменений; 0 — отключить. */
+  updateIntervalMs: number;
+  /** Сколько узлов может измениться за один патч (1..N). */
+  updateBatchMax: number;
+  /** Период heartbeat (ping) по WebSocket. */
+  heartbeatMs: number;
+  /** Сколько последних патчей хранить для досылки при переподключении. */
+  patchBufferSize: number;
 }
 
 function readInt(env: NodeJS.ProcessEnv, name: string, fallback: number, min = 0): number {
@@ -35,5 +43,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     seed: readInt(env, 'MOCK_SEED', 20260914, 0),
     corsOrigin: env.CORS_ORIGIN && env.CORS_ORIGIN.trim() !== '' ? env.CORS_ORIGIN.trim() : null,
     logLevel: logLevelRaw,
+    updateIntervalMs: readInt(env, 'UPDATE_INTERVAL_MS', 3_000, 0),
+    updateBatchMax: readInt(env, 'UPDATE_BATCH_MAX', 3, 1),
+    heartbeatMs: readInt(env, 'HEARTBEAT_MS', 10_000, 1_000),
+    patchBufferSize: readInt(env, 'PATCH_BUFFER_SIZE', 500, 1),
   };
 }

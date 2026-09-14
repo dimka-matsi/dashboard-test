@@ -16,3 +16,15 @@ export function orgTreeUrl(scenario: string | null): string {
   const query = scenario ? `?scenario=${encodeURIComponent(scenario)}` : '';
   return `${API_BASE}/org-tree${query}`;
 }
+
+/** URL WebSocket-канала: same-origin `/ws`, если не переопределён через VITE_WS_URL. */
+export function liveUrl(origin: string = window.location.origin): string {
+  const explicit = import.meta.env.VITE_WS_URL;
+  if (explicit) return explicit;
+  return origin.replace(/^http/, 'ws') + '/ws';
+}
+
+/** `?live=off` отключает live-канал (удобно для скриншотов и отладки состояний). */
+export function isLiveEnabled(search: string = window.location.search): boolean {
+  return new URLSearchParams(search).get('live') !== 'off';
+}
