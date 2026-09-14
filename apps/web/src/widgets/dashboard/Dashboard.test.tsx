@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { jsonResponse, makeOrgFixture } from '@/test/fixtures';
+import { setMediaMatches } from '@/test/media';
 import { renderWithProviders } from '@/test/render';
 
 import { Dashboard } from './Dashboard';
@@ -30,13 +31,13 @@ describe('Dashboard', () => {
     renderWithProviders(<Dashboard />);
     const user = userEvent.setup();
 
-    await screen.findByRole('tree');
+    const tree = await screen.findByRole('tree');
     await user.click(screen.getByRole('button', { name: 'Развернуть «Отдел А1»' }));
-    expect(screen.getByText('Команда А1-1')).toBeInTheDocument();
-    expect(screen.getByText('Команда А1-2')).toBeInTheDocument();
+    expect(within(tree).getByText('Команда А1-1')).toBeInTheDocument();
+    expect(within(tree).getByText('Команда А1-2')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Свернуть «Отдел А1»' }));
-    expect(screen.queryByText('Команда А1-1')).not.toBeInTheDocument();
+    expect(within(tree).queryByText('Команда А1-1')).not.toBeInTheDocument();
   });
 
   it('показывает численность и индикатор эффективности у каждого узла', async () => {
@@ -96,6 +97,52 @@ describe('Dashboard', () => {
     renderWithProviders(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent('Некорректная структура данных'),
+    );
+  });
+
+  it('split-view: клик по строке таблицы выделяет узел в дереве и раскрывает его предков', async () => {
+    setMediaMatches(true);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(makeOrgFixture())));
+    renderWithProviders(<Dashboard />);
+    const user = userEvent.setup();
+
+    const tree = await screen.findByRole('tree');
+    const grid = screen.getByRole('grid');
+    // переключателя на широком экране нет
+    expect(screen.queryByRole('group', { name: 'Режим просмотра' })).not.toBeInTheDocument();
+    expect(within(tree).queryByText('Команда Б1-1')).not.toBeInTheDocument();
+
+    await user.click(within(grid).getByText('Команда Б1-1'));
+
+    const item = within(tree)
+      .getAllByRole('treeitem')
+      .find((el) => el.getAttribute('data-node-id') === 'team-b1-1');
+    expect(item).toBeDefined();
+    expect(item).toHaveAttribute('aria-selected', 'true');
+    expect(within(grid).getByText('Команда Б1-1').closest('tr')).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('узкий экран: переключатель «Дерево / Таблица», выбор строки возвращает к дереву', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(makeOrgFixture())));
+    renderWithProviders(<Dashboard />);
+    const user = userEvent.setup();
+
+    await screen.findByRole('tree');
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Таблица' }));
+    expect(screen.getByRole('grid')).toBeInTheDocument();
+    expect(screen.queryByRole('tree')).not.toBeInTheDocument();
+
+    await user.click(within(screen.getByRole('grid')).getByText('Отдел Б1'));
+    const tree = screen.getByRole('tree');
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+    expect(within(tree).getByText('Отдел Б1').closest('[role="treeitem"]')).toHaveAttribute(
+      'aria-selected',
+      'true',
     );
   });
 });

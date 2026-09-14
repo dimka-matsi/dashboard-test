@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import styled from 'styled-components';
 
+import { ancestorsOf } from '@/entities/org/model/build-org-tree';
 import type { NodeId, OrgTree } from '@/entities/org/model/types';
 import { Button } from '@/shared/ui/Button';
 import { Panel, PanelBody, PanelHeader, PanelTitle } from '@/shared/ui/Panel';
@@ -22,13 +24,19 @@ export interface OrgTreePanelProps {
   tree: OrgTree;
   selectedId: NodeId | null;
   onSelect: (id: NodeId) => void;
+  hidden?: boolean;
 }
 
-export function OrgTreePanel({ tree, selectedId, onSelect }: OrgTreePanelProps) {
-  const { expanded, toggle, expandAll, collapseAll } = useExpandedNodes(tree);
+export function OrgTreePanel({ tree, selectedId, onSelect, hidden }: OrgTreePanelProps) {
+  const { expanded, toggle, expandMany, expandAll, collapseAll } = useExpandedNodes(tree);
+
+  // Выбранный узел (например, из таблицы) должен быть виден: раскрываем всех его предков.
+  useEffect(() => {
+    if (selectedId) expandMany(ancestorsOf(tree, selectedId));
+  }, [selectedId, tree, expandMany]);
 
   return (
-    <Panel aria-label="Дерево подразделений">
+    <Panel aria-label="Дерево подразделений" hidden={hidden}>
       <PanelHeader>
         <div>
           <PanelTitle>Дерево</PanelTitle>

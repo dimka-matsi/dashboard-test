@@ -9,6 +9,11 @@ export const Panel = styled.section`
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.lg};
   box-shadow: ${({ theme }) => theme.shadow.sm};
+
+  /* display: flex перебивает UA-стиль [hidden]; возвращаем семантику атрибута */
+  &[hidden] {
+    display: none;
+  }
 `;
 
 export const PanelHeader = styled.header`
@@ -26,9 +31,9 @@ export const PanelTitle = styled.h2`
   font-weight: 600;
 `;
 
-export const PanelBody = styled.div`
+export const PanelBody = styled.div<{ $flush?: boolean }>`
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: ${({ theme }) => theme.space.md};
+  padding: ${({ theme, $flush }) => ($flush ? 0 : theme.space.md)};
 `;

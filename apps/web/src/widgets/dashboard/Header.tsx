@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import styled from 'styled-components';
 
 import { Button } from '@/shared/ui/Button';
@@ -45,15 +46,18 @@ const Right = styled.div`
 export interface HeaderProps {
   isFetching: boolean;
   onRefresh?: () => void;
+  /** Центральный слот: переключатель «Дерево / Таблица» на узких экранах. */
+  center?: ReactNode;
 }
 
-export function Header({ isFetching, onRefresh }: HeaderProps) {
+export function Header({ isFetching, onRefresh, center }: HeaderProps) {
   return (
     <Bar>
       <Brand>
         <Title>Staff Pulse</Title>
         <Subtitle>мониторинг орг-структуры</Subtitle>
       </Brand>
+      {center}
       <Right>
         {onRefresh && (
           <Button type="button" $size="sm" onClick={onRefresh} disabled={isFetching}>

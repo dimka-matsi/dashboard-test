@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import type { NodeId, OrgTree } from '@/entities/org/model/types';
@@ -142,12 +142,19 @@ const TreeNodeItem = memo(function TreeNodeItem({
   onSelect,
 }: TreeNodeItemProps) {
   const node = tree.nodes.get(id);
+  const isSelected = selectedId === id;
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // Узел, выбранный в таблице, прокручивается в видимую область.
+  useEffect(() => {
+    if (isSelected) rowRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [isSelected]);
+
   if (!node) return null;
 
   const children = tree.children.get(id) ?? EMPTY;
   const hasChildren = children.length > 0;
   const isOpen = hasChildren && expanded.has(id);
-  const isSelected = selectedId === id;
   const level = tree.depth.get(id) ?? 1;
 
   return (
@@ -158,7 +165,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
       aria-selected={isSelected}
       data-node-id={id}
     >
-      <Row $selected={isSelected} onClick={() => onSelect(id)}>
+      <Row ref={rowRef} $selected={isSelected} onClick={() => onSelect(id)}>
         {hasChildren ? (
           <Toggle
             type="button"

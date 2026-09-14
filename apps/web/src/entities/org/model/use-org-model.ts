@@ -1,35 +1,34 @@
 import { useMemo } from 'react';
 
 import { useOrgTreeQuery } from '../api/org-tree-query';
-import { buildOrgTree } from './build-org-tree';
-import type { OrgTree } from './types';
+import { buildOrgModel, type OrgModel } from './org-model';
 
-export type OrgTreeState =
+export type OrgModelState =
   | { status: 'loading' }
   | { status: 'error'; error: unknown; retry: () => void }
   | { status: 'empty'; refetch: () => void }
   | {
       status: 'ready';
-      tree: OrgTree;
+      model: OrgModel;
       isFetching: boolean;
-      /** Ошибка фонового обновления: данные на экране есть, но они могут быть устаревшими. */
+      /** Ошибка фонового обновления: данные на экране есть, но могут быть устаревшими. */
       refetchError: unknown;
       refetch: () => void;
     };
 
-type BuildResult = { tree: OrgTree } | { error: unknown };
+type BuildResult = { model: OrgModel } | { error: unknown };
 
 /** Состояние экрана поверх запроса: загрузка, ошибка, пусто, готово. */
-export function useOrgTree(): OrgTreeState {
+export function useOrgModel(): OrgModelState {
   const query = useOrgTreeQuery();
   const data = query.data;
 
-  // Дерево строится один раз на ссылку данных: structural sharing в кэше гарантирует,
-  // что одинаковый ответ сервера не меняет ссылку и не запускает пересборку.
+  // Модель (дерево + агрегаты) строится один раз на ссылку данных: structural sharing в кэше
+  // гарантирует, что одинаковый ответ сервера не меняет ссылку и не запускает пересборку.
   const built = useMemo<BuildResult | null>(() => {
     if (!data) return null;
     try {
-      return { tree: buildOrgTree(data) };
+      return { model: buildOrgModel(data) };
     } catch (error) {
       return { error };
     }
@@ -42,10 +41,10 @@ export function useOrgTree(): OrgTreeState {
     return { status: 'loading' };
   }
   if ('error' in built) return { status: 'error', error: built.error, retry: refetch };
-  if (built.tree.nodes.size === 0) return { status: 'empty', refetch };
+  if (built.model.tree.nodes.size === 0) return { status: 'empty', refetch };
   return {
     status: 'ready',
-    tree: built.tree,
+    model: built.model,
     isFetching: query.isFetching,
     refetchError: query.isError ? query.error : null,
     refetch,
