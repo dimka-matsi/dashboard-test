@@ -1,28 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import styled from 'styled-components';
 
 import type { OrgModel } from '@/entities/org/model/org-model';
 import type { NodeId } from '@/entities/org/model/types';
 import type { FlashMap } from '@/entities/org/store/org-store';
-import { useDebouncedValue } from '@/shared/lib/use-debounced-value';
+import { applySearch } from '@/features/search/apply-filter';
+import { FilterChips } from '@/features/search/FilterChips';
+import type { SearchState } from '@/features/search/use-search';
 import { Button } from '@/shared/ui/Button';
-import { Panel, PanelBody, PanelHeader, PanelTitle } from '@/shared/ui/Panel';
-import { SearchInput } from '@/shared/ui/TextInput';
+import { Panel, PanelBody, PanelHeader, PanelMeta, PanelTitle } from '@/shared/ui/Panel';
 
 import { AnalyticsTable } from './AnalyticsTable';
-import { buildRows, FILTER_DEBOUNCE_MS, filterRows, sortRows } from './rows';
+import { buildRows, sortRows } from './rows';
 import { useSort } from './use-sort';
 
-const Controls = styled.div`
+const Left = styled.div`
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: ${({ theme }) => theme.space.sm};
-`;
-
-const Meta = styled.span`
-  color: ${({ theme }) => theme.colors.textMuted};
-  font-size: ${({ theme }) => theme.font.size.sm};
-  margin-left: ${({ theme }) => theme.space.sm};
+  min-width: 0;
 `;
 
 export interface AnalyticsTablePanelProps {
@@ -30,6 +27,8 @@ export interface AnalyticsTablePanelProps {
   flashes: FlashMap;
   selectedId: NodeId | null;
   onSelect: (id: NodeId) => void;
+  /** Состояние поиска из шапки: текст и разобранный фильтр. */
+  search: SearchState;
   hidden?: boolean;
 }
 
@@ -38,51 +37,48 @@ export function AnalyticsTablePanel({
   flashes,
   selectedId,
   onSelect,
+  search,
   hidden,
 }: AnalyticsTablePanelProps) {
-  const [query, setQuery] = useState('');
-  // Поле ввода обновляется мгновенно, а фильтрация — с задержкой 250 мс после последнего символа.
-  const debouncedQuery = useDebouncedValue(query, FILTER_DEBOUNCE_MS);
   const { sort, sortBy, reverse, reset } = useSort();
+  const filter = search.parse.filter;
+
+  // Ручная сортировка пользователя важнее сортировки из AI-фильтра.
+  const effectiveSort = sort ?? filter?.sort ?? null;
 
   // Конвейер производного состояния: каждый шаг пересчитывается только при смене своих входов.
   const rows = useMemo(() => buildRows(model), [model]);
-  const filtered = useMemo(() => filterRows(rows, debouncedQuery), [rows, debouncedQuery]);
-  const sorted = useMemo(() => sortRows(filtered, sort), [filtered, sort]);
+  const filtered = useMemo(() => applySearch(rows, search, model.tree), [rows, search, model.tree]);
+  const sorted = useMemo(() => sortRows(filtered, effectiveSort), [filtered, effectiveSort]);
 
   return (
     <Panel aria-label="Аналитическая таблица" hidden={hidden}>
       <PanelHeader>
-        <div>
-          <PanelTitle>Таблица</PanelTitle>
-          <Meta>
-            показано {sorted.length} из {rows.length}
-          </Meta>
-        </div>
-        <Controls>
-          {sort && (
-            <Button type="button" $size="sm" $variant="ghost" onClick={reset}>
-              Сбросить сортировку
-            </Button>
-          )}
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            label="Фильтр по названию подразделения"
-            placeholder="Фильтр по названию"
-          />
-        </Controls>
+        <Left>
+          <div>
+            <PanelTitle>Таблица</PanelTitle>
+            <PanelMeta>
+              показано {sorted.length} из {rows.length}
+            </PanelMeta>
+          </div>
+          {filter && <FilterChips filter={filter} />}
+        </Left>
+        {sort && (
+          <Button type="button" $size="sm" $variant="ghost" onClick={reset}>
+            Сбросить сортировку
+          </Button>
+        )}
       </PanelHeader>
       <PanelBody $flush>
         <AnalyticsTable
           rows={sorted}
-          sort={sort}
+          sort={effectiveSort}
           onSortBy={sortBy}
           onReverse={reverse}
           selectedId={selectedId}
           onSelect={onSelect}
           flashes={flashes}
-          query={debouncedQuery}
+          query={filter ? '' : search.debouncedQuery}
         />
       </PanelBody>
     </Panel>

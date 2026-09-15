@@ -1,0 +1,16 @@
+# Staff Pulse
+
+> Дашборд мониторинга орг-структуры компании: интерактивное дерево «дивизионы → отделы →
+> команды» с headcount/бюджетом/эффективностью на узел, аналитическая таблица с агрегатами и
+> live-обновлениями по WebSocket. Тестовое задание: React, Vite, TypeScript, styled-components.
+
+## Docs
+
+- [README](https://github.com/dimka-matsi/dashboard-test/blob/main/README.md): запуск одной командой, стек, режимы просмотра, «AI в разработке»
+- [Architecture](https://github.com/dimka-matsi/dashboard-test/blob/main/docs/architecture.md): слои клиента, поток данных от API до UI
+- [Data model](https://github.com/dimka-matsi/dashboard-test/blob/main/docs/data-model.md): структура дерева, алгоритм агрегации, контракт WebSocket-патча
+- [ADRs](https://github.com/dimka-matsi/dashboard-test/tree/main/docs/adr): решения по нетривиальным вопросам (кэширование, валидация, AI-поиск и др.)
+
+## Optional
+
+- [AI development log](https://github.com/dimka-matsi/dashboard-test/blob/main/docs/ai-log.md): хронология использования AI-инструментов по этапам

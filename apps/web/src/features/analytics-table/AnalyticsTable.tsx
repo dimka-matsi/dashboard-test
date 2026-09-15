@@ -5,7 +5,6 @@ import type { ChangedField } from '@/entities/org/model/apply-changes';
 import { performanceBucket } from '@/entities/org/model/performance';
 import type { NodeId } from '@/entities/org/model/types';
 import type { FlashMap } from '@/entities/org/store/org-store';
-import { PerformanceDot } from '@/entities/org/ui/PerformanceDot';
 import { formatBudget, formatInteger, formatPerformance } from '@/shared/lib/format';
 import { Flash } from '@/shared/ui/Flash';
 
@@ -23,27 +22,27 @@ interface ColumnDef {
 }
 
 export const COLUMNS: readonly ColumnDef[] = [
-  { key: 'name', label: 'Подразделение', align: 'left', width: '34%' },
-  { key: 'level', label: 'Уровень', align: 'left', width: '15%' },
+  { key: 'name', label: 'Подразделение', align: 'left', width: '28%' },
+  { key: 'level', label: 'Уровень', align: 'left', width: '16%' },
   {
     key: 'totalHeadcount',
     label: 'Всего сотрудников',
     align: 'right',
-    width: '15%',
+    width: '13%',
     flashField: 'totalHeadcount',
   },
   {
     key: 'totalBudget',
     label: 'Бюджет суммарный',
     align: 'right',
-    width: '20%',
+    width: '21%',
     flashField: 'totalBudget',
   },
   {
     key: 'avgPerformance',
     label: 'Средняя эффективность',
     align: 'right',
-    width: '16%',
+    width: '22%',
     flashField: 'avgPerformance',
   },
 ];
@@ -75,14 +74,20 @@ const Table = styled.table`
     top: 0;
     z-index: 1;
     padding: 0;
-    background: ${({ theme }) => theme.colors.surfaceMuted};
+    background: ${({ theme }) => theme.colors.surface};
     text-align: left;
     font-weight: 600;
-    font-size: ${({ theme }) => theme.font.size.sm};
+    font-size: ${({ theme }) => theme.font.size.xs};
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     color: ${({ theme }) => theme.colors.textMuted};
     white-space: normal;
-    line-height: 1.2;
+    line-height: 1.25;
     vertical-align: bottom;
+  }
+
+  td {
+    height: 44px;
   }
 
   tbody tr {
@@ -90,7 +95,7 @@ const Table = styled.table`
   }
 
   tbody tr:hover td {
-    background: ${({ theme }) => theme.colors.surfaceHover};
+    background: ${({ theme }) => theme.colors.surfaceMuted};
   }
 
   tbody tr[aria-selected='true'] td {
@@ -164,11 +169,59 @@ const LevelBadge = styled.span`
   }
 `;
 
-const PerformanceCell = styled.span`
+/* Метр: заливка несёт статус, дорожка — светлый шаг того же цвета; число рядом в цвете текста. */
+const MeterCell = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 10px;
+`;
+
+const MeterTrack = styled.span`
+  display: inline-block;
+  flex: none;
+  width: 56px;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: ${({ theme }) => theme.colors.border};
+
+  &[data-bucket='low'] {
+    background: ${({ theme }) => theme.colors.performanceSoft.low};
+  }
+
+  &[data-bucket='medium'] {
+    background: ${({ theme }) => theme.colors.performanceSoft.medium};
+  }
+
+  &[data-bucket='high'] {
+    background: ${({ theme }) => theme.colors.performanceSoft.high};
+  }
+`;
+
+const MeterFill = styled.span<{ $pct: number }>`
+  display: block;
+  width: ${({ $pct }) => Math.max(0, Math.min(100, $pct))}%;
+  height: 100%;
+  border-radius: 3px;
+  transition: width ${({ theme }) => theme.motion.base} ease;
+
+  &[data-bucket='low'] {
+    background: ${({ theme }) => theme.colors.performance.low};
+  }
+
+  &[data-bucket='medium'] {
+    background: ${({ theme }) => theme.colors.performance.medium};
+  }
+
+  &[data-bucket='high'] {
+    background: ${({ theme }) => theme.colors.performance.high};
+  }
+`;
+
+const MeterValue = styled.span`
+  min-width: 36px;
+  text-align: right;
 `;
 
 const EmptyRow = styled.td`
@@ -252,15 +305,17 @@ const TableRowItem = memo(
         </td>
         <td {...cell(4)} data-align="right">
           <Flash at={flash?.get('avgPerformance')}>
-            <PerformanceCell>
+            <MeterCell>
               {row.avgPerformance !== null && (
-                <PerformanceDot
-                  data-bucket={performanceBucket(row.avgPerformance)}
-                  aria-hidden="true"
-                />
+                <MeterTrack data-bucket={performanceBucket(row.avgPerformance)} aria-hidden="true">
+                  <MeterFill
+                    $pct={Math.round(row.avgPerformance)}
+                    data-bucket={performanceBucket(row.avgPerformance)}
+                  />
+                </MeterTrack>
               )}
-              {formatPerformance(row.avgPerformance)}
-            </PerformanceCell>
+              <MeterValue>{formatPerformance(row.avgPerformance)}</MeterValue>
+            </MeterCell>
           </Flash>
         </td>
       </tr>

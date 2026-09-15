@@ -1,0 +1,36 @@
+# docker compose up --build  → клиент на http://localhost:${WEB_PORT:-8080}
+# Переменные берутся из .env в корне (см. .env.example); значения по умолчанию указаны здесь.
+services:
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: ${SERVER_PORT:-3001}
+      MOCK_SEED: ${MOCK_SEED:-20260914}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      UPDATE_INTERVAL_MS: ${UPDATE_INTERVAL_MS:-3000}
+      UPDATE_BATCH_MAX: ${UPDATE_BATCH_MAX:-3}
+      HEARTBEAT_MS: ${HEARTBEAT_MS:-10000}
+      PATCH_BUFFER_SIZE: ${PATCH_BUFFER_SIZE:-500}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-6000}
+    expose:
+      - '${SERVER_PORT:-3001}'
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      SERVER_UPSTREAM: server:${SERVER_PORT:-3001}
+      WEB_PORT: ${WEB_PORT:-8080}
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    restart: unless-stopped

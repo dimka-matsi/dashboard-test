@@ -16,6 +16,11 @@ export interface ServerConfig {
   heartbeatMs: number;
   /** Сколько последних патчей хранить для досылки при переподключении. */
   patchBufferSize: number;
+  /** Ключ Anthropic API для AI-поиска; без ключа работает разбор правилами. */
+  anthropicApiKey: string | null;
+  anthropicModel: string;
+  /** Таймаут запроса к модели, после которого используется разбор правилами. */
+  aiTimeoutMs: number;
 }
 
 function readInt(env: NodeJS.ProcessEnv, name: string, fallback: number, min = 0): number {
@@ -47,5 +52,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     updateBatchMax: readInt(env, 'UPDATE_BATCH_MAX', 3, 1),
     heartbeatMs: readInt(env, 'HEARTBEAT_MS', 10_000, 1_000),
     patchBufferSize: readInt(env, 'PATCH_BUFFER_SIZE', 500, 1),
+    anthropicApiKey:
+      env.ANTHROPIC_API_KEY && env.ANTHROPIC_API_KEY.trim() !== ''
+        ? env.ANTHROPIC_API_KEY.trim()
+        : null,
+    anthropicModel:
+      env.ANTHROPIC_MODEL && env.ANTHROPIC_MODEL.trim() !== ''
+        ? env.ANTHROPIC_MODEL.trim()
+        : 'claude-opus-5',
+    aiTimeoutMs: readInt(env, 'AI_TIMEOUT_MS', 6_000, 500),
   };
 }

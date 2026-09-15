@@ -177,3 +177,27 @@ NodeChange = {
 
 Структурные изменения (добавление, удаление, перенос узла) в контракт патча не входят; для них
 предусмотрен путь через `resync` и полный снимок.
+
+## Структурированный фильтр поиска
+
+`POST /api/search/parse` принимает `{ query: string }` и возвращает
+`{ filter: SearchFilter | null, source: 'llm' | 'rules' | 'none', explanation? }`
+(`packages/contracts/src/search.ts`):
+
+```ts
+SearchFilter = {
+  text?: string,                                  // подстрока названия
+  levels?: number[],                              // 1 дивизион, 2 отдел, 3 команда
+  headcount?: { min?: number, max?: number },     // суммарная численность
+  budget?: { min?: number, max?: number },        // суммарный бюджет, руб.
+  performance?: { min?: number, max?: number },   // средняя эффективность 0–100
+  within?: string,                                // подстрока названия предка
+  sort?: { column: 'name' | 'level' | 'totalHeadcount' | 'totalBudget' | 'avgPerformance',
+           direction: 'asc' | 'desc' },
+  limit?: number,                                 // первые N после сортировки
+}
+```
+
+Клиент применяет фильтр к строкам таблицы (`features/search/apply-filter.ts`): текст → уровни →
+диапазоны по суммарным показателям → предок → сортировка → `limit`. Строки без средней
+эффективности (нулевая численность) не проходят условие по `performance`.

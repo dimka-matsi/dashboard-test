@@ -32,13 +32,17 @@ afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-/** Открывает соединение и собирает первые `count` сообщений. */
+/** Открывает соединение и собирает первые `count` сообщений; `ready` резолвится после hello. */
 function collect(
   url: string,
   count: number,
   timeoutMs = 3000,
-): Promise<{ messages: ServerMessage[]; ws: WebSocket }> {
-  return new Promise((resolve, reject) => {
+): { done: Promise<{ messages: ServerMessage[]; ws: WebSocket }>; ready: Promise<void> } {
+  let markReady: () => void = () => undefined;
+  const ready = new Promise<void>((resolve) => {
+    markReady = resolve;
+  });
+  const done = new Promise<{ messages: ServerMessage[]; ws: WebSocket }>((resolve, reject) => {
     const ws = new WebSocket(url);
     const messages: ServerMessage[] = [];
     const timer = setTimeout(() => {
@@ -52,6 +56,7 @@ function collect(
         return;
       }
       messages.push(parsed.data);
+      if (messages.length === 1) markReady();
       if (messages.length >= count) {
         clearTimeout(timer);
         resolve({ messages, ws });
@@ -59,11 +64,12 @@ function collect(
     });
     ws.addEventListener('error', () => reject(new Error('ошибка WebSocket')));
   });
+  return { done, ready };
 }
 
 describe('WebSocket live-канал', () => {
   it('первым сообщением приходит hello с serverId и текущим seq', async () => {
-    const { messages, ws } = await collect(wsUrl, 1);
+    const { messages, ws } = await collect(wsUrl, 1).done;
     expect(messages[0]).toEqual({
       type: 'hello',
       serverId: 'srv-test',
@@ -76,8 +82,8 @@ describe('WebSocket live-канал', () => {
   it('патч рассылается всем подключённым клиентам', async () => {
     const a = collect(wsUrl, 2);
     const b = collect(wsUrl, 2);
-    // ждём подключения обоих (hello), затем меняем состояние
-    await new Promise((r) => setTimeout(r, 100));
+    // ждём hello у обоих клиентов — они уже в списке рассылки — и только затем меняем состояние
+    await Promise.all([a.ready, b.ready]);
     const patch = state.applyChanges([
       { id: 'div-01', fields: { performance: 61 }, updatedAt: NOW },
     ]);
@@ -85,7 +91,7 @@ describe('WebSocket live-канал', () => {
     live.broadcast(patch!);
 
     for (const pending of [a, b]) {
-      const { messages, ws } = await pending;
+      const { messages, ws } = await pending.done;
       expect(messages[1]).toEqual(patch);
       ws.close();
     }
@@ -97,7 +103,7 @@ describe('WebSocket live-канал', () => {
       { id: 'div-02', fields: { budget: 5_000_000 }, updatedAt: NOW },
     ]);
     const p2 = state.applyChanges([{ id: 'div-03', fields: { headcount: 9 }, updatedAt: NOW }]);
-    const { messages, ws } = await collect(`${wsUrl}?serverId=srv-test&since=${since}`, 3);
+    const { messages, ws } = await collect(`${wsUrl}?serverId=srv-test&since=${since}`, 3).done;
     expect(messages[0]?.type).toBe('hello');
     expect(messages[1]).toEqual(p1);
     expect(messages[2]).toEqual(p2);
@@ -105,7 +111,7 @@ describe('WebSocket live-канал', () => {
   });
 
   it('чужой serverId → resync (server-restarted)', async () => {
-    const { messages, ws } = await collect(`${wsUrl}?serverId=old-process&since=1`, 2);
+    const { messages, ws } = await collect(`${wsUrl}?serverId=old-process&since=1`, 2).done;
     expect(messages[1]).toMatchObject({
       type: 'resync',
       reason: 'server-restarted',
@@ -118,13 +124,13 @@ describe('WebSocket live-канал', () => {
     for (let i = 0; i < 5; i += 1) {
       state.applyChanges([{ id: 'div-04', fields: { performance: 70 + i }, updatedAt: NOW }]);
     }
-    const { messages, ws } = await collect(`${wsUrl}?serverId=srv-test&since=0`, 2);
+    const { messages, ws } = await collect(`${wsUrl}?serverId=srv-test&since=0`, 2).done;
     expect(messages[1]).toMatchObject({ type: 'resync', reason: 'gap-too-large' });
     ws.close();
   });
 
   it('битый курсор → resync (unknown-cursor)', async () => {
-    const { messages, ws } = await collect(`${wsUrl}?serverId=srv-test&since=abc`, 2);
+    const { messages, ws } = await collect(`${wsUrl}?serverId=srv-test&since=abc`, 2).done;
     expect(messages[1]).toMatchObject({ type: 'resync', reason: 'unknown-cursor' });
     ws.close();
   });

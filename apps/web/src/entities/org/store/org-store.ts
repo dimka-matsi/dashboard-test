@@ -108,13 +108,21 @@ export class OrgModelStore {
   private recordFlashes(changed: ReadonlyMap<NodeId, ReadonlySet<ChangedField>>): void {
     const now = this.now();
     const next = new Map<NodeId, ReadonlyMap<ChangedField, number>>();
-    // Старые отметки отбрасываем, чтобы карта не росла бесконечно.
+    // Старые отметки отбрасываем, чтобы карта не росла бесконечно. Узел, которого этот патч
+    // не коснулся и у которого ничего не истекло, переносится той же ссылкой на Map — иначе
+    // строки таблицы/дерева теряют мемоизацию на все ~FLASH_TTL_MS после каждого чужого патча.
     for (const [id, fields] of this.flashMap) {
+      if (changed.has(id)) continue;
+      const expired = [...fields.values()].some((at) => now - at >= FLASH_TTL_MS);
+      if (!expired) {
+        next.set(id, fields);
+        continue;
+      }
       const fresh = new Map([...fields].filter(([, at]) => now - at < FLASH_TTL_MS));
       if (fresh.size > 0) next.set(id, fresh);
     }
     for (const [id, fields] of changed) {
-      const merged = new Map(next.get(id) ?? []);
+      const merged = new Map(this.flashMap.get(id) ?? []);
       for (const field of fields) merged.set(field, now);
       next.set(id, merged);
     }

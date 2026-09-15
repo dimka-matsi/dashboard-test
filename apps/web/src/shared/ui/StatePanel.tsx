@@ -10,13 +10,14 @@ const Wrap = styled.div<{ $tone?: 'neutral' | 'danger' }>`
   align-items: center;
   justify-content: center;
   gap: ${({ theme }) => theme.space.sm};
-  min-height: 240px;
+  min-height: 280px;
   padding: ${({ theme }) => theme.space.xl};
   text-align: center;
   color: ${({ theme }) => theme.colors.textMuted};
-  border-radius: ${({ theme }) => theme.radius.lg};
+  border-radius: ${({ theme }) => theme.radius.xl};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ theme, $tone }) =>
-    $tone === 'danger' ? theme.colors.dangerSoft : theme.colors.surfaceMuted};
+    $tone === 'danger' ? theme.colors.dangerSoft : theme.colors.surface};
 `;
 
 const Title = styled.p`

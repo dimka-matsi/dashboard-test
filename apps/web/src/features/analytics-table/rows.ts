@@ -1,4 +1,4 @@
-import type { OrgNode } from '@staff-pulse/contracts';
+import type { OrgNode, SortColumn } from '@staff-pulse/contracts';
 
 import type { NodeAggregate } from '@/entities/org/model/aggregate';
 import { levelLabel } from '@/entities/org/model/levels';
@@ -23,15 +23,9 @@ export interface TableRow {
   readonly aggregate: NodeAggregate;
 }
 
-export const SORT_COLUMNS = [
-  'name',
-  'level',
-  'totalHeadcount',
-  'totalBudget',
-  'avgPerformance',
-] as const;
+export { SORT_COLUMNS } from '@staff-pulse/contracts';
+export type { SortColumn } from '@staff-pulse/contracts';
 
-export type SortColumn = (typeof SORT_COLUMNS)[number];
 export type SortDirection = 'asc' | 'desc';
 
 export interface SortState {

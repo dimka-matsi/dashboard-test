@@ -7,6 +7,7 @@ import { loadDotEnv } from './lib/dotenv';
 import { createLogger } from './lib/logger';
 import { startTicker } from './live/ticker';
 import { attachLiveServer } from './live/ws-server';
+import { createSearchService } from './search';
 import { OrgState } from './state';
 
 const envFile = loadDotEnv();
@@ -15,7 +16,8 @@ const log = createLogger(config.logLevel);
 if (envFile) log.debug(`Загружен ${envFile}`);
 
 const state = new OrgState(generateOrgNodes(config.seed), undefined, config.patchBufferSize);
-const server = createServer(createRequestHandler({ state, config, log }));
+const search = createSearchService({ config, log });
+const server = createServer(createRequestHandler({ state, config, log, search }));
 const live = attachLiveServer({ httpServer: server, state, heartbeatMs: config.heartbeatMs, log });
 
 const stopTicker = startTicker({
@@ -34,6 +36,7 @@ server.listen(config.port, config.host, () => {
     seed: config.seed,
     serverId: state.serverId,
     updateIntervalMs: config.updateIntervalMs,
+    aiSearch: search.llmEnabled ? `llm (${config.anthropicModel})` : 'rules',
   });
 });
 

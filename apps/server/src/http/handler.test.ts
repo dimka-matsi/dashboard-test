@@ -7,6 +7,7 @@ import * as z from 'zod/mini';
 
 import { generateOrgNodes } from '../data/generate';
 import { silentLogger } from '../lib/logger';
+import { createSearchService } from '../search';
 import { OrgState } from '../state';
 import { createRequestHandler } from './handler';
 
@@ -18,8 +19,12 @@ beforeAll(async () => {
     generateOrgNodes(7, Date.parse('2026-09-14T00:00:00Z')),
     'test-server',
   );
+  const search = createSearchService({
+    config: { anthropicApiKey: null, anthropicModel: 'test', aiTimeoutMs: 1000 },
+    log: silentLogger,
+  });
   server = createServer(
-    createRequestHandler({ state, config: { corsOrigin: null }, log: silentLogger }),
+    createRequestHandler({ state, config: { corsOrigin: null }, log: silentLogger, search }),
   );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -86,5 +91,29 @@ describe('прочие маршруты', () => {
     const res = await fetch(`${base}/api/nope`);
     expect(res.status).toBe(404);
     expect(await res.json()).toMatchObject({ error: expect.any(String) });
+  });
+
+  it('POST /api/search/parse разбирает запрос правилами', async () => {
+    const res = await fetch(`${base}/api/search/parse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'отделы с эффективностью ниже 50' }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      source: 'rules',
+      filter: { levels: [2], performance: { max: 50 } },
+    });
+  });
+
+  it('POST /api/search/parse без query → 400', async () => {
+    const res = await fetch(`${base}/api/search/parse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: 'x' }),
+    });
+    expect(res.status).toBe(400);
+    const notJson = await fetch(`${base}/api/search/parse`, { method: 'POST', body: '{oops' });
+    expect(notJson.status).toBe(400);
   });
 });

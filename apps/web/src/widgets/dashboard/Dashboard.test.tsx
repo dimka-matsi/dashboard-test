@@ -121,8 +121,8 @@ describe('Dashboard', () => {
 
     const tree = await screen.findByRole('tree');
     const grid = screen.getByRole('grid');
-    // переключателя на широком экране нет
-    expect(screen.queryByRole('group', { name: 'Режим просмотра' })).not.toBeInTheDocument();
+    // на широком экране по умолчанию обе панели рядом
+    expect(screen.getByRole('button', { name: 'Вместе' })).toHaveAttribute('aria-pressed', 'true');
     expect(visibleNodeIds(tree)).not.toContain('team-b1-1');
 
     await user.click(within(grid).getByText('Команда Б1-1'));
@@ -138,12 +138,13 @@ describe('Dashboard', () => {
     );
   });
 
-  it('узкий экран: переключатель «Дерево / Таблица», выбор строки возвращает к дереву', async () => {
+  it('узкий экран: режим «Вместе» недоступен, выбор строки возвращает к дереву', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(makeOrgFixture())));
     renderWithProviders(<Dashboard />);
     const user = userEvent.setup();
 
     await screen.findByRole('tree');
+    expect(screen.getByRole('button', { name: 'Вместе' })).toBeDisabled();
     expect(screen.queryByRole('grid')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Таблица' }));
@@ -157,6 +158,37 @@ describe('Dashboard', () => {
       'aria-selected',
       'true',
     );
+  });
+
+  it('показывает сводные плитки и график по дивизионам', async () => {
+    setMediaMatches(true);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(makeOrgFixture())));
+    renderWithProviders(<Dashboard />);
+    await screen.findByRole('tree');
+
+    expect(document.querySelector('[data-kpi="headcount"]')).toHaveTextContent('41');
+    expect(document.querySelector('[data-kpi="units"]')).toHaveTextContent('9');
+    expect(document.querySelector('[data-kpi="units"]')).toHaveTextContent(
+      '2 дивизиона · 3 отдела · 4 команды',
+    );
+    const chart = screen.getByRole('region', { name: 'Средняя эффективность по дивизионам' });
+    expect(within(chart).getByLabelText(/Дивизион Б: 62,0/)).toBeInTheDocument();
+  });
+
+  it('поиск подсвечивает найденные узлы в дереве и приглушает остальные', async () => {
+    setMediaMatches(true);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(makeOrgFixture())));
+    renderWithProviders(<Dashboard />);
+    const user = userEvent.setup();
+    const tree = await screen.findByRole('tree');
+
+    await user.type(screen.getByRole('searchbox'), 'б1');
+    await waitFor(() =>
+      expect(tree.querySelector('[data-node-id="dep-b1"] [data-match="true"]')).not.toBeNull(),
+    );
+    expect(tree.querySelector('[data-node-id="div-a"] [data-dim="true"]')).not.toBeNull();
+    // предки найденной команды раскрываются в эффекте следующим рендером — ждём
+    await waitFor(() => expect(visibleNodeIds(tree)).toContain('team-b1-1'));
   });
 
   describe('live-обновления', () => {
@@ -217,6 +249,11 @@ describe('Dashboard', () => {
       expect(
         within(item as HTMLElement).getAllByTitle('Численность подразделения')[0],
       ).toHaveTextContent('12');
+
+      // и сводная плитка: 41 + 2, с подсветкой
+      const headcountTile = document.querySelector('[data-kpi="headcount"]')!;
+      expect(headcountTile).toHaveTextContent('43');
+      expect(headcountTile.querySelector('[data-flash-at]')).not.toBeNull();
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });

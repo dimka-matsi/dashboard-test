@@ -7,6 +7,10 @@ export const GlobalStyle = createGlobalStyle`
     box-sizing: border-box;
   }
 
+  html {
+    color-scheme: ${({ theme }) => theme.mode};
+  }
+
   html,
   body,
   #root {
@@ -22,6 +26,8 @@ export const GlobalStyle = createGlobalStyle`
     background: ${({ theme }) => theme.colors.bg};
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    transition: background-color ${({ theme }) => theme.motion.base} ease,
+      color ${({ theme }) => theme.motion.base} ease;
   }
 
   button,
@@ -37,6 +43,10 @@ export const GlobalStyle = createGlobalStyle`
   :focus-visible {
     outline: 2px solid ${({ theme }) => theme.colors.focus};
     outline-offset: 2px;
+  }
+
+  ::selection {
+    background: ${({ theme }) => theme.colors.accentSoft};
   }
 
   /* Уважаем системную настройку «уменьшить движение»: анимации и переходы практически мгновенны. */

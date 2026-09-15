@@ -5,6 +5,7 @@ import type { ChangedField } from '@/entities/org/model/apply-changes';
 import type { NodeId, OrgTree } from '@/entities/org/model/types';
 import type { FlashMap } from '@/entities/org/store/org-store';
 import { Flash } from '@/shared/ui/Flash';
+import { BuildingIcon, FolderIcon, UsersIcon } from '@/shared/ui/icons';
 
 import { PerformanceIndicator } from './PerformanceIndicator';
 
@@ -13,6 +14,8 @@ export interface TreeViewProps {
   expanded: ReadonlySet<NodeId>;
   selectedId: NodeId | null;
   flashes: FlashMap;
+  /** Узлы, найденные поиском; остальные приглушаются. null — поиск не активен. */
+  matches: ReadonlySet<NodeId> | null;
   onToggle: (id: NodeId) => void;
   onSelect: (id: NodeId) => void;
 }
@@ -27,7 +30,7 @@ const List = styled.ul`
 `;
 
 const Group = styled(List)`
-  padding-left: 22px;
+  padding-left: 26px;
 `;
 
 const Item = styled.li`
@@ -65,21 +68,66 @@ const CollapsibleInner = styled.div`
 const Row = styled.div<{ $selected: boolean }>`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space.sm};
-  min-height: 34px;
-  padding: 4px ${({ theme }) => theme.space.sm};
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 10px 4px 6px;
   border-radius: ${({ theme }) => theme.radius.md};
   cursor: pointer;
   background: ${({ theme, $selected }) => ($selected ? theme.colors.accentSoft : 'transparent')};
   box-shadow: ${({ theme, $selected }) =>
     $selected ? `inset 3px 0 0 ${theme.colors.accent}` : 'none'};
-  transition: background-color ${({ theme }) => theme.motion.fast} ease;
+  transition:
+    background-color ${({ theme }) => theme.motion.fast} ease,
+    opacity ${({ theme }) => theme.motion.fast} ease;
 
   &:hover {
     background: ${({ theme, $selected }) =>
       $selected ? theme.colors.accentSoft : theme.colors.surfaceHover};
   }
+
+  &[data-dim='true'] {
+    opacity: 0.45;
+  }
+
+  &[data-match='true'] {
+    font-weight: 600;
+  }
 `;
+
+/* Иконка уровня: цветной чип, как папки в файловых менеджерах. */
+const LevelChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 8px;
+
+  &[data-level='1'] {
+    color: ${({ theme }) => theme.colors.level[1].fg};
+    background: ${({ theme }) => theme.colors.level[1].bg};
+  }
+
+  &[data-level='2'] {
+    color: ${({ theme }) => theme.colors.level[2].fg};
+    background: ${({ theme }) => theme.colors.level[2].bg};
+  }
+
+  &[data-level='3'] {
+    color: ${({ theme }) => theme.colors.level[3].fg};
+    background: ${({ theme }) => theme.colors.level[3].bg};
+  }
+`;
+
+function LevelIcon({ level }: { level: number }) {
+  const Icon = level === 1 ? BuildingIcon : level === 2 ? FolderIcon : UsersIcon;
+  return (
+    <LevelChip data-level={Math.min(level, 3)} aria-hidden="true">
+      <Icon size={16} />
+    </LevelChip>
+  );
+}
 
 const Toggle = styled.button<{ $open: boolean }>`
   display: inline-flex;
@@ -163,6 +211,7 @@ interface TreeNodeItemProps {
   expanded: ReadonlySet<NodeId>;
   selectedId: NodeId | null;
   flashes: FlashMap;
+  matches: ReadonlySet<NodeId> | null;
   onToggle: (id: NodeId) => void;
   onSelect: (id: NodeId) => void;
 }
@@ -173,6 +222,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   expanded,
   selectedId,
   flashes,
+  matches,
   onToggle,
   onSelect,
 }: TreeNodeItemProps) {
@@ -201,7 +251,13 @@ const TreeNodeItem = memo(function TreeNodeItem({
       aria-selected={isSelected}
       data-node-id={id}
     >
-      <Row ref={rowRef} $selected={isSelected} onClick={() => onSelect(id)}>
+      <Row
+        ref={rowRef}
+        $selected={isSelected}
+        data-dim={matches ? !matches.has(id) : undefined}
+        data-match={matches ? matches.has(id) : undefined}
+        onClick={() => onSelect(id)}
+      >
         {hasChildren ? (
           <Toggle
             type="button"
@@ -217,6 +273,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
         ) : (
           <ToggleSpacer aria-hidden="true" />
         )}
+        <LevelIcon level={level} />
         <Name>{node.name}</Name>
         <Headcount title="Численность подразделения">
           <PeopleIcon />
@@ -238,6 +295,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
                   expanded={expanded}
                   selectedId={selectedId}
                   flashes={flashes}
+                  matches={matches}
                   onToggle={onToggle}
                   onSelect={onSelect}
                 />
@@ -255,6 +313,7 @@ export function TreeView({
   expanded,
   selectedId,
   flashes,
+  matches,
   onToggle,
   onSelect,
 }: TreeViewProps) {
@@ -268,6 +327,7 @@ export function TreeView({
           expanded={expanded}
           selectedId={selectedId}
           flashes={flashes}
+          matches={matches}
           onToggle={onToggle}
           onSelect={onSelect}
         />

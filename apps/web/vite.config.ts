@@ -10,6 +10,12 @@ const rootDir = fileURLToPath(new URL('../../', import.meta.url));
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, rootDir, '');
   const apiTarget = env.VITE_DEV_API_TARGET ?? `http://localhost:${env.SERVER_PORT ?? '3001'}`;
+  // Общий прокси и для `vite dev`, и для `vite preview` — иначе продакшен-сборку
+  // не проверить локально без Docker.
+  const apiProxy = {
+    '/api': { target: apiTarget, changeOrigin: true },
+    '/ws': { target: apiTarget, ws: true, changeOrigin: true },
+  };
 
   return {
     envDir: rootDir,
@@ -19,10 +25,10 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: Number(env.WEB_DEV_PORT ?? 5173),
-      proxy: {
-        '/api': { target: apiTarget, changeOrigin: true },
-        '/ws': { target: apiTarget, ws: true, changeOrigin: true },
-      },
+      proxy: apiProxy,
+    },
+    preview: {
+      proxy: apiProxy,
     },
     build: {
       sourcemap: false,

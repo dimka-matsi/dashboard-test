@@ -1,21 +1,26 @@
 import { useState } from 'react';
 
-import { theme } from '@/app/styles/theme';
+import { LAYOUT } from '@/app/styles/theme';
 import { useMediaQuery } from '@/shared/lib/use-media-query';
 
-export type ViewMode = 'tree' | 'table';
+/** Режим просмотра: дерево, таблица или обе панели рядом (только на широком экране). */
+export type ViewMode = 'tree' | 'table' | 'split';
 
-export const SPLIT_VIEW_QUERY = `(min-width: ${theme.layout.splitMinWidth}px)`;
+export const SPLIT_VIEW_QUERY = `(min-width: ${LAYOUT.splitMinWidth}px)`;
 
 export interface ViewLayout {
-  /** Широкий экран: дерево и таблица рядом, переключатель не нужен. */
-  isSplit: boolean;
+  /** Широкий экран: split-view доступен. */
+  isWide: boolean;
+  /** Выбор пользователя. */
   mode: ViewMode;
+  /** Что реально показано: split на узком экране сводится к дереву. */
+  effective: ViewMode;
   setMode: (mode: ViewMode) => void;
 }
 
 export function useViewLayout(): ViewLayout {
-  const isSplit = useMediaQuery(SPLIT_VIEW_QUERY);
-  const [mode, setMode] = useState<ViewMode>('tree');
-  return { isSplit, mode, setMode };
+  const isWide = useMediaQuery(SPLIT_VIEW_QUERY);
+  const [mode, setMode] = useState<ViewMode>('split');
+  const effective: ViewMode = mode === 'split' && !isWide ? 'tree' : mode;
+  return { isWide, mode, effective, setMode };
 }

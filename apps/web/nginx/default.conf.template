@@ -1,0 +1,56 @@
+# Статика клиента + прокси API и WebSocket на сервер (${SERVER_UPSTREAM} подставляется из окружения).
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Сжатие текстовых ответов
+    gzip on;
+    gzip_vary on;
+    gzip_comp_level 6;
+    gzip_min_length 512;
+    gzip_proxied any;
+    gzip_types
+        text/plain
+        text/css
+        application/javascript
+        application/json
+        image/svg+xml
+        application/manifest+json;
+
+    # REST API
+    location /api/ {
+        proxy_pass http://${SERVER_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Connection "";
+        proxy_read_timeout 30s;
+    }
+
+    # WebSocket live-обновлений: upgrade + длинный таймаут (heartbeat идёт каждые 10 с)
+    location = /ws {
+        proxy_pass http://${SERVER_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+    }
+
+    # Хэшированные ассеты Vite можно кэшировать навсегда
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    # SPA: любой путь отдаёт index.html, который всегда перепроверяется
+    location / {
+        add_header Cache-Control "no-cache";
+        try_files $uri $uri/ /index.html;
+    }
+}

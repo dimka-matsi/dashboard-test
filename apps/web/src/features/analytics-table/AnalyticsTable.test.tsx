@@ -4,13 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildOrgModel } from '@/entities/org/model/org-model';
 import { makeOrgFixture } from '@/test/fixtures';
+import { TableWithSearch } from '@/test/harness';
 import { renderWithProviders } from '@/test/render';
-
-import { AnalyticsTablePanel } from './AnalyticsTablePanel';
 
 const model = buildOrgModel(makeOrgFixture());
 const noop = () => undefined;
-const NO_FLASHES = new Map();
 
 function bodyRowNames(): string[] {
   const grid = screen.getByRole('grid');
@@ -23,9 +21,7 @@ function bodyRowNames(): string[] {
 
 describe('AnalyticsTablePanel', () => {
   it('показывает пять столбцов и агрегаты в русском формате', () => {
-    renderWithProviders(
-      <AnalyticsTablePanel model={model} flashes={NO_FLASHES} selectedId={null} onSelect={noop} />,
-    );
+    renderWithProviders(<TableWithSearch model={model} selectedId={null} onSelect={noop} />);
 
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent?.trim());
     expect(headers).toEqual([
@@ -47,9 +43,7 @@ describe('AnalyticsTablePanel', () => {
 
   it('клик по заголовку сортирует по возрастанию, двойной клик — в обратную сторону', async () => {
     const user = userEvent.setup();
-    renderWithProviders(
-      <AnalyticsTablePanel model={model} flashes={NO_FLASHES} selectedId={null} onSelect={noop} />,
-    );
+    renderWithProviders(<TableWithSearch model={model} selectedId={null} onSelect={noop} />);
     const header = screen.getByRole('button', { name: /Всего сотрудников/ });
 
     await user.click(header);
@@ -74,9 +68,7 @@ describe('AnalyticsTablePanel', () => {
 
   it('клик по другому столбцу переключает сортировку на него', async () => {
     const user = userEvent.setup();
-    renderWithProviders(
-      <AnalyticsTablePanel model={model} flashes={NO_FLASHES} selectedId={null} onSelect={noop} />,
-    );
+    renderWithProviders(<TableWithSearch model={model} selectedId={null} onSelect={noop} />);
     await user.click(screen.getByRole('button', { name: /Бюджет суммарный/ }));
     await user.click(screen.getByRole('button', { name: /Уровень/ }));
     expect(screen.getByRole('columnheader', { name: /Уровень/ })).toHaveAttribute(
@@ -92,27 +84,13 @@ describe('AnalyticsTablePanel', () => {
   it('клик по строке вызывает onSelect с id узла', async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
-    renderWithProviders(
-      <AnalyticsTablePanel
-        model={model}
-        flashes={NO_FLASHES}
-        selectedId={null}
-        onSelect={onSelect}
-      />,
-    );
+    renderWithProviders(<TableWithSearch model={model} selectedId={null} onSelect={onSelect} />);
     await user.click(screen.getByText('Команда А1-2'));
     expect(onSelect).toHaveBeenCalledWith('team-a1-2');
   });
 
   it('выделенная строка помечена aria-selected', () => {
-    renderWithProviders(
-      <AnalyticsTablePanel
-        model={model}
-        flashes={NO_FLASHES}
-        selectedId="dep-b1"
-        onSelect={noop}
-      />,
-    );
+    renderWithProviders(<TableWithSearch model={model} selectedId="dep-b1" onSelect={noop} />);
     expect(screen.getByText('Отдел Б1').closest('tr')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Отдел А1').closest('tr')).toHaveAttribute('aria-selected', 'false');
   });
@@ -124,11 +102,9 @@ describe('фильтр по названию', () => {
 
   it('применяется с дебаунсом 250 мс', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    renderWithProviders(
-      <AnalyticsTablePanel model={model} flashes={NO_FLASHES} selectedId={null} onSelect={noop} />,
-    );
+    renderWithProviders(<TableWithSearch model={model} selectedId={null} onSelect={noop} />);
 
-    await user.type(screen.getByRole('searchbox', { name: /Фильтр по названию/ }), 'команда');
+    await user.type(screen.getByRole('searchbox'), 'команда');
     // сразу после ввода фильтр ещё не применён
     expect(bodyRowNames()).toHaveLength(9);
 
@@ -146,9 +122,7 @@ describe('фильтр по названию', () => {
 
   it('пустой результат показывает подсказку с запросом', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    renderWithProviders(
-      <AnalyticsTablePanel model={model} flashes={NO_FLASHES} selectedId={null} onSelect={noop} />,
-    );
+    renderWithProviders(<TableWithSearch model={model} selectedId={null} onSelect={noop} />);
     await user.type(screen.getByRole('searchbox'), 'xyz');
     await act(async () => {
       vi.advanceTimersByTime(260);
@@ -166,14 +140,7 @@ describe('клавиатурная навигация (WAI-ARIA grid)', () => {
   it('стрелки, Home/End, Ctrl+Home/End, Enter; единственная ячейка в tab-порядке', async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
-    renderWithProviders(
-      <AnalyticsTablePanel
-        model={model}
-        flashes={NO_FLASHES}
-        selectedId={null}
-        onSelect={onSelect}
-      />,
-    );
+    renderWithProviders(<TableWithSearch model={model} selectedId={null} onSelect={onSelect} />);
 
     expect(cellOf('Дивизион А', 0)).toHaveAttribute('tabindex', '0');
     expect(cellOf('Отдел А1', 0)).toHaveAttribute('tabindex', '-1');
@@ -206,9 +173,7 @@ describe('клавиатурная навигация (WAI-ARIA grid)', () => {
 
   it('фокус привязан к строке и переживает пересортировку', async () => {
     const user = userEvent.setup();
-    renderWithProviders(
-      <AnalyticsTablePanel model={model} flashes={NO_FLASHES} selectedId={null} onSelect={noop} />,
-    );
+    renderWithProviders(<TableWithSearch model={model} selectedId={null} onSelect={noop} />);
     act(() => cellOf('Дивизион А', 0).focus());
     await user.keyboard('{ArrowDown}{ArrowDown}'); // Команда А1-1
     expect(cellOf('Команда А1-1', 0)).toHaveAttribute('tabindex', '0');
